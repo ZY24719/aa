@@ -20,8 +20,6 @@
         .day-switch::-webkit-scrollbar{display:none;}
         .day-item{min-width:80px;padding:8px 5px;text-align:center;border:1px solid #ccd6e0;border-radius:8px;cursor:pointer;font-size:14px;flex-shrink:0;}
         .day-item.active{background:#2357d4;color:#fff;border-color:#2357d4;}
-        
-        /* 核心：允许鼠标拖动选择不触发异常 */
         .hour-box{
             display:flex;
             gap:10px;
@@ -37,7 +35,6 @@
             cursor:grabbing;
         }
         .hour-box::-webkit-scrollbar{display:none;}
-        
         .hour-card{min-width:110px;padding:14px 8px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;transition:0.3s;}
         .hour-card.current-hour{transform:scale(1.15);border:2px solid #e53e3e;background:#fff1f1;box-shadow:0 0 10px rgba(229,62,62,0.3);z-index:10;}
         .hour-card h4{font-size:14px;color:#222;margin-bottom:6px;}
@@ -155,10 +152,8 @@ let nowChartType = "line";
 let originData = [];
 let forecastData = [];
 
-// 读取同目录下的data.json
 const DATA_URL = "./data.json";
 
-// 加载公共数据
 async function loadData(){
     try{
         const res = await fetch(DATA_URL + "?t=" + Date.now());
@@ -179,7 +174,6 @@ function switchPage(page,ele){
     if(page === "home") initHome();
 }
 
-// 实时时间
 function refreshTime(){
     const now = new Date();
     const week = ["周日","周一","周二","周三","周四","周五","周六"][now.getDay()];
@@ -192,13 +186,38 @@ function refreshTime(){
 setInterval(refreshTime,1000);
 refreshTime();
 
+// 拖拽滑动变量
+let dragStartX = 0;
+let dragScrollLeft = 0;
+let isDragging = false;
+
 function initHome(){
     renderDaySelect();
     refreshAllData();
-    initDragScroll(); // 初始化鼠标拖动
+    bindDragEvent();
 }
 
-// 生成前后9天日期
+function bindDragEvent(){
+    const box = document.getElementById("hourCardBox");
+    box.onmousedown = function(e){
+        isDragging = true;
+        dragStartX = e.pageX - box.offsetLeft;
+        dragScrollLeft = box.scrollLeft;
+        box.style.cursor = "grabbing";
+    }
+    document.onmouseup = function(){
+        isDragging = false;
+        box.style.cursor = "grab";
+    }
+    document.onmousemove = function(e){
+        if(!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - box.offsetLeft;
+        const move = x - dragStartX;
+        box.scrollLeft = dragScrollLeft - move;
+    }
+}
+
 function getNineDay(){
     let arr = [];
     let today = new Date();
@@ -238,7 +257,6 @@ function renderDaySelect(){
     });
 }
 
-// 计算预测客流
 function calcForecast(){
     forecastData = [];
     const dayList = getNineDay();
@@ -286,45 +304,15 @@ function updateCongest(){
     }
 }
 
-// 自动滚动到当前小时并居中
 function scrollToCurrentHour(){
     const box = document.getElementById("hourCardBox");
     const currentCard = document.querySelector(".hour-card.current-hour");
     if(!currentCard) return;
-    
     const boxWidth = box.offsetWidth;
     const cardWidth = currentCard.offsetWidth;
     const cardLeft = currentCard.offsetLeft;
-    
     const scrollPos = cardLeft - (boxWidth / 2) + (cardWidth / 2);
     box.scrollTo({ left: scrollPos, behavior: "smooth" });
-}
-
-// ========== 核心修复：电脑端鼠标拖动滑动 ==========
-function initDragScroll(){
-    const slider = document.getElementById("hourCardBox");
-    let isDown = false;
-    let startX;
-    let scrollLeft;
-
-    slider.addEventListener('mousedown', (e) => {
-        isDown = true;
-        startX = e.pageX - slider.offsetLeft;
-        scrollLeft = slider.scrollLeft;
-    });
-    slider.addEventListener('mouseleave', () => {
-        isDown = false;
-    });
-    slider.addEventListener('mouseup', () => {
-        isDown = false;
-    });
-    slider.addEventListener('mousemove', (e) => {
-        if(!isDown) return;
-        e.preventDefault();
-        const x = e.pageX - slider.offsetLeft;
-        const walk = (x - startX);
-        slider.scrollLeft = scrollLeft - walk;
-    });
 }
 
 function renderHourCard(){
@@ -377,13 +365,13 @@ function drawChart(){
     }
     let config;
     if(nowChartType==="line"){
-        config = {type:"line",data:{labels,labels,datasets:[{label:"北门",data:nArr,borderColor:"#2357d4",tension:0.3},{label:"南门",data:sArr,borderColor:"#22c55e",tension:0.3}]}};
+        config = {type:"line",data:{labels:datasets:[{label:"北门",data:nArr,borderColor:"#2357d4",tension:0.3},{label:"南门",data:sArr,borderColor:"#22c55e",tension:0.3}]}};
     }else if(nowChartType==="bar"){
         config = {type:"bar",data:{labels,datasets:[{label:"北门",data:nArr,backgroundColor:"#2357d4"},{label:"南门",data:sArr,backgroundColor:"#22c55e"}]}};
     }else{
         let sumN = nArr.reduce((a,b)=>a+b,0);
         let sumS = sArr.reduce((a,b)=>a+b,0);
-        config = {type:"pie",data:{labels:["北门","南门"],datasets:[{data:[sumN,sumS],backgroundColor:["#2357d4","#22c55e"}]}};
+        config = {type:"pie",data:{labels:["北门","南门"],datasets:[{data:[sumN,sumS],backgroundColor:["#2357d4","#22c55e"]}]}};
     }
     chartIns = new Chart(ctx,{...config,options:{responsive:true,maintainAspectRatio:false}});
 }
@@ -425,9 +413,9 @@ function exportExcel(){
     let sheet = [["日期","时段","南门人数","北门人数"]];
     list.forEach(item=>sheet.push([item.fDate,item.hour,item.south,item.north]));
     let ws = XLSX.utils.aoa_to_sheet(sheet);
-    let wb = XLS.utils.book_new();
-    XLS.utils.book_append_sheet(wb,ws,"客流数据");
-    XLS.writeFile(wb,`${qDate}客流数据.xlsx`);
+    let wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"客流数据");
+    XLSX.writeFile(wb,`${qDate}客流数据.xlsx`);
 }
 
 function refreshAllData(){
