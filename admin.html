@@ -31,7 +31,7 @@
 <body>
 <div class="container">
     <h2>客流数据录入后台</h2>
-    <div class="tip">录入数据后，点击【导出data文件】，替换仓库里的data.json即可全网更新</div>
+    <div class="tip">录入数据自动本地保存，关闭网页也不丢失；导出data.json后可上传替换更新线上数据</div>
 
     <div class="form-item">
         <label>统计日期</label>
@@ -89,16 +89,43 @@
 <script>
 let dataList = [];
 let delTargetId = null;
+// 本地存储键名
+const STORAGE_KEY = 'local_flow_data';
 
-// 读取本地同目录data.json
+// 初始化加载：优先读取本地缓存，再尝试读取服务器json
 async function initLoad(){
+    // 1. 先读取浏览器本地保存的数据
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if(localData){
+        try{
+            dataList = JSON.parse(localData);
+        }catch(e){
+            dataList = [];
+        }
+    }
+
+    // 2. 可选：读取同目录data.json，合并使用（不需要可注释这段）
     try{
         const res = await fetch("./data.json?t="+Date.now());
-        dataList = await res.json();
-        renderList();
+        const json = await res.json();
+        if (Array.isArray(json) && json.length > 0) {
+            // 简单去重合并
+            json.forEach(item=>{
+                const exist = dataList.find(d=>d.id === item.id);
+                if(!exist) dataList.push(item);
+            })
+            saveLocalData();
+        }
     }catch(e){
-        dataList = [];
+        console.log("本地无data.json文件，仅使用缓存数据");
     }
+
+    renderList();
+}
+
+// 保存数据到浏览器本地存储
+function saveLocalData(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataList));
 }
 
 // 添加单条数据
@@ -120,7 +147,9 @@ function addData(){
         south:south,
         north:north
     });
-    alert("添加成功");
+    // 新增后立刻本地保存
+    saveLocalData();
+    alert("添加成功，数据已本地保存");
     renderList();
     // 清空输入框
     document.getElementById("dateVal").value = "";
@@ -148,9 +177,9 @@ function renderList(){
     });
 }
 
-// 下载json文件
+// 下载json文件，格式不变，用于线上替换
 function downloadJson(){
-    const jsonStr = JSON.stringify(dataList,null,2);
+    const jsonStr = JSON.stringify(dataList, null, 2);
     const blob = new Blob([jsonStr],{type:"application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -171,6 +200,7 @@ function closeDelModal(){
 }
 function confirmDel(){
     dataList = dataList.filter(item=>item.id !== delTargetId);
+    saveLocalData();
     closeDelModal();
     renderList();
 }
@@ -184,6 +214,7 @@ function closeClearModal(){
 }
 function confirmClear(){
     dataList = [];
+    saveLocalData();
     closeClearModal();
     renderList();
 }
