@@ -20,8 +20,24 @@
         .day-switch::-webkit-scrollbar{display:none;}
         .day-item{min-width:80px;padding:8px 5px;text-align:center;border:1px solid #ccd6e0;border-radius:8px;cursor:pointer;font-size:14px;flex-shrink:0;}
         .day-item.active{background:#2357d4;color:#fff;border-color:#2357d4;}
-        .hour-box{display:flex;gap:10px;overflow-x:auto;padding:8px 0;margin-bottom:20px;scroll-behavior:smooth;scrollbar-width:none;}
+        
+        /* 核心：允许鼠标拖动选择不触发异常 */
+        .hour-box{
+            display:flex;
+            gap:10px;
+            overflow-x:auto;
+            padding:8px 0;
+            margin-bottom:20px;
+            scroll-behavior:smooth;
+            scrollbar-width:none;
+            cursor:grab;
+            user-select:none;
+        }
+        .hour-box:active{
+            cursor:grabbing;
+        }
         .hour-box::-webkit-scrollbar{display:none;}
+        
         .hour-card{min-width:110px;padding:14px 8px;border-radius:10px;text-align:center;border:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;transition:0.3s;}
         .hour-card.current-hour{transform:scale(1.15);border:2px solid #e53e3e;background:#fff1f1;box-shadow:0 0 10px rgba(229,62,62,0.3);z-index:10;}
         .hour-card h4{font-size:14px;color:#222;margin-bottom:6px;}
@@ -36,6 +52,7 @@
         .advice-content{color:#333;font-size:14px;line-height:1.6;}
         .chart-title{font-size:15px;color:#222;margin-bottom:12px;}
         .chart-tab{display:flex;gap:10px;margin-bottom:15px;overflow-x:auto;scrollbar-width:none;}
+        .chart-tab::-webkit-scrollbar{display:none;}
         .tab-btn{padding:6px 14px;border:1px solid #2357d4;border-radius:6px;background:#fff;color:#2357d4;cursor:pointer;font-size:14px;flex-shrink:0;}
         .tab-btn.active{background:#2357d4;color:#fff;}
         .chart-wrap{height:300px;}
@@ -178,6 +195,7 @@ refreshTime();
 function initHome(){
     renderDaySelect();
     refreshAllData();
+    initDragScroll(); // 初始化鼠标拖动
 }
 
 // 生成前后9天日期
@@ -274,13 +292,39 @@ function scrollToCurrentHour(){
     const currentCard = document.querySelector(".hour-card.current-hour");
     if(!currentCard) return;
     
-    // 计算居中位置
     const boxWidth = box.offsetWidth;
     const cardWidth = currentCard.offsetWidth;
     const cardLeft = currentCard.offsetLeft;
     
     const scrollPos = cardLeft - (boxWidth / 2) + (cardWidth / 2);
     box.scrollTo({ left: scrollPos, behavior: "smooth" });
+}
+
+// ========== 核心修复：电脑端鼠标拖动滑动 ==========
+function initDragScroll(){
+    const slider = document.getElementById("hourCardBox");
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
+    slider.addEventListener('mousedown', (e) => {
+        isDown = true;
+        startX = e.pageX - slider.offsetLeft;
+        scrollLeft = slider.scrollLeft;
+    });
+    slider.addEventListener('mouseleave', () => {
+        isDown = false;
+    });
+    slider.addEventListener('mouseup', () => {
+        isDown = false;
+    });
+    slider.addEventListener('mousemove', (e) => {
+        if(!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - slider.offsetLeft;
+        const walk = (x - startX);
+        slider.scrollLeft = scrollLeft - walk;
+    });
 }
 
 function renderHourCard(){
@@ -300,7 +344,6 @@ function renderHourCard(){
         card.innerHTML = `<h4>${h}:00</h4><div class="flow-text">北门：${data.north}</div><div class="flow-text">南门：${data.south}</div>`;
         box.appendChild(card);
     }
-    // 渲染完成后自动滚动居中
     setTimeout(scrollToCurrentHour, 50);
     updateAdvice();
     drawChart();
@@ -340,7 +383,7 @@ function drawChart(){
     }else{
         let sumN = nArr.reduce((a,b)=>a+b,0);
         let sumS = sArr.reduce((a,b)=>a+b,0);
-        config = {type:"pie",data:{labels:["北门","南门"],datasets:[{data:[sumN,sumS],backgroundColor:["#2357d4","#22c55e"]}]}};
+        config = {type:"pie",data:{labels:["北门","南门"],datasets:[{data:[sumN,sumS],backgroundColor:["#2357d4","#22c55e"}]}};
     }
     chartIns = new Chart(ctx,{...config,options:{responsive:true,maintainAspectRatio:false}});
 }
@@ -382,9 +425,9 @@ function exportExcel(){
     let sheet = [["日期","时段","南门人数","北门人数"]];
     list.forEach(item=>sheet.push([item.fDate,item.hour,item.south,item.north]));
     let ws = XLSX.utils.aoa_to_sheet(sheet);
-    let wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,"客流数据");
-    XLSX.writeFile(wb,`${qDate}客流数据.xlsx`);
+    let wb = XLS.utils.book_new();
+    XLS.utils.book_append_sheet(wb,ws,"客流数据");
+    XLS.writeFile(wb,`${qDate}客流数据.xlsx`);
 }
 
 function refreshAllData(){
