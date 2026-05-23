@@ -98,7 +98,6 @@
     </div>
 </div>
 
-<!-- 4. 使用帮助（纯用户视角） -->
 <div class="page" id="help">
     <div class="main-container">
         <div class="help-content">
@@ -269,6 +268,21 @@ function updateCongest(){
     }
 }
 
+// 自动滚动到当前小时并居中
+function scrollToCurrentHour(){
+    const box = document.getElementById("hourCardBox");
+    const currentCard = document.querySelector(".hour-card.current-hour");
+    if(!currentCard) return;
+    
+    // 计算居中位置
+    const boxWidth = box.offsetWidth;
+    const cardWidth = currentCard.offsetWidth;
+    const cardLeft = currentCard.offsetLeft;
+    
+    const scrollPos = cardLeft - (boxWidth / 2) + (cardWidth / 2);
+    box.scrollTo({ left: scrollPos, behavior: "smooth" });
+}
+
 function renderHourCard(){
     const box = document.getElementById("hourCardBox");
     box.innerHTML = "";
@@ -286,6 +300,8 @@ function renderHourCard(){
         card.innerHTML = `<h4>${h}:00</h4><div class="flow-text">北门：${data.north}</div><div class="flow-text">南门：${data.south}</div>`;
         box.appendChild(card);
     }
+    // 渲染完成后自动滚动居中
+    setTimeout(scrollToCurrentHour, 50);
     updateAdvice();
     drawChart();
 }
